@@ -299,6 +299,7 @@ void waitfg(pid_t pid)
 //
 void sigchld_handler(int sig) 
 {
+  pid_t
   return;
 }
 
@@ -310,6 +311,7 @@ void sigchld_handler(int sig)
 //
 void sigint_handler(int sig) 
 {
+  
   return;
 }
 
