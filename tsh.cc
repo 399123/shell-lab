@@ -274,12 +274,9 @@ void do_bgfg(char **argv)
 //
 void waitfg(pid_t pid)
 {
-  int status;	
-  if(waitpid(pid, &status, 0)<0){
-	    unix_error("waitfg: waitpid error");
-  } else{
-	  printf("Parent fxn stop waiting");
-  }	      
+  while(fgpid(jobs) == pid){ //runs a endless loop till fg job is done then exits
+	  
+  }	       
   return;
 }
 
@@ -299,7 +296,12 @@ void waitfg(pid_t pid)
 //
 void sigchld_handler(int sig) 
 {
-  pid_t
+  pid_t pid=fgpid(jobs); // 
+  
+  if(pid !=0){
+	  kill(-pid, SIGINT);
+  }	  
+  
   return;
 }
 
@@ -311,7 +313,11 @@ void sigchld_handler(int sig)
 //
 void sigint_handler(int sig) 
 {
+  pid_t pid=fgpid(jobs); //variable for fg task
   
+  if(pid !=0){
+	  kill(-pid, SIGINT); // fi there is a fg job, job reaped
+  }
   return;
 }
 
@@ -323,6 +329,11 @@ void sigint_handler(int sig)
 //
 void sigtstp_handler(int sig) 
 {
+  pid_t pid=fgpid(jobs); //variable for fg task
+  
+  if(pid !=0){
+	  kill(-pid, SIGTSTP); // fi there is a fg job, job suspended
+  }
   return;
 }
 
