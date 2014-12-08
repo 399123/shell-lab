@@ -146,7 +146,7 @@ int main(int argc, char **argv)
 void eval(char *cmdline) 
 {
     char *argv[MAXARGS];
-    char buf[MAXLINE];
+    char temp[MAXLINE];
     int bg;
     pid_t pid;
     sigset_t mask;
@@ -155,40 +155,40 @@ void eval(char *cmdline)
     sigemptyset(&mask);
     sigaddset(&mask, SIGCHLD);
     
-    strcpy(buf, cmdline);
-    bg = parseline(buf, argv);
+    strcpy(temp, cmdline); //copy 
+    bg = parseline(temp, argv); //bg is a boolean based on argv and cmdline
     
     if (argv[0] == NULL)
 	return;   /* Ignore empty lines */
     
-    if (!builtin_cmd(argv)) {		 /* If user input is not a built in command, fork() */
+    if (!builtin_cmd(argv)) {		 //If user input is not a built in command, fork()
 	
-	/* Parent blocks SIGCHLD signal temporarily */
-	sigprocmask(SIG_BLOCK, &mask, 0);
 	
-	if ((pid = fork()) < 0) {	/* Child runs user job */
-	    printf("fork(): forking error\n");
+	sigprocmask(SIG_BLOCK, &mask, 0); //parent blocks child signal temperarily
+	 
+	if ((pid = fork()) < 0) {	// Child runs user job  //pid is set to fork here
+	    printf("fork(): forking error\n"); //id has to be greater than 0 so error
 	    return;
 	}
 	
 	if (pid == 0) {
-	    setpgid(0,0);				/* Change child process group id */
+	    setpgid(0,0);				//sets children id to zero aka sets program id to zero 
 	    
 	    if (execvp(argv[0], argv) < 0) {
-		printf("%s: Command not found. \n", argv[0]);
+		printf("%s: Command not found. \n", argv[0]); //if the first element of argv is less than zero: error
 		exit(0);
 	    }
 	    
-	} else {
-	    /* Parent waits for foreground job to terminate */
+	} else { 
+	    // Parent waits for foreground job to terminate 
 	    if (bg == 1) {
-		addjob(jobs, pid, BG, cmdline);		/* If bg, add job to job list as bg */
+		addjob(jobs, pid, BG, cmdline);		//If bg, add job to job list as bg 
 		printf("[%d] (%d) %s", pid2jid(pid), pid, cmdline);
 	    } else {
-		addjob(jobs, pid, FG, cmdline);		/* If !bg, add job to job list as fg */
+		addjob(jobs, pid, FG, cmdline);		// If !bg, add job to job list as fg 
 	    }
 		
-	    sigprocmask(SIG_UNBLOCK, &mask, 0);		/* Parent unblocks SIGCHLD */
+	    sigprocmask(SIG_UNBLOCK, &mask, 0);		// Parent unblocks SIGCHLD 
 	    waitfg(pid);
 	}
     }
@@ -316,6 +316,8 @@ void sigchld_handler(int sig)
   int status;
   while((pid=waitpid(WAIT_ANY, &status, WNOHANG | WUNTRACED))>0){
 	  //While there are children fxn still out there to kill
+	  //WNOHANG = flag that specs if waitpid should return immediately instead of waiting, if there no child ready
+	  //WUNTRACED= flag that tell status of stopped and terminated children
 	  if(WIFSIGNALED(status)){ //child exits bc signal is not caught
 		printf("Job [%d] (%d) termined by signal %d /n", pid2jid(pid), pid, WTERMSIG(status));
 		//prints out the job ## stopped by signal XX
@@ -345,7 +347,7 @@ void sigint_handler(int sig)
   
   if(pid !=0){
 	  kill(-pid, SIGINT); // if there is a fg job, job reaped
-  }
+  } //sends SIGINT to child pid 
   return;
 }
 
@@ -361,7 +363,7 @@ void sigtstp_handler(int sig)
   
   if(pid !=0){
 	  kill(-pid, SIGTSTP); // if there is a fg job, job suspended
-  }
+  } //sends STGTSTP to child pid
   return;
 }
 
