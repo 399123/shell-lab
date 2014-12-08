@@ -153,37 +153,41 @@ void eval(char *cmdline)
   // use below to launch a process.
   //
   char *argv[MAXARGS];
+  char temp[MAXLINE];
 
   //
   // The 'bg' variable is TRUE if the job should run
   // in background mode or FALSE if it should run in FG
   //
   pid_t pid;
+  sigset_t mask; // make mask for fxn
+  sigemptyset(&mask); // puts empty set into address of mask
+  sigaddset(&mask,SIGCHLD); //sets sigchild set to mask
+  
+  strcpy(temp, cmdline); // stores copy of cmdline to temp
   int bg = parseline(cmdline, argv); 
   if (argv[0] == NULL)  
     return;   /* ignore empty lines */
    
   if (!builtin_cmd(argv))
   { 
-	  if(bg) // if bg task = true
-	  {
-		  if((pid = fork()) ==0 ){ //bg child
+	  sigprocmask(SIG_BLOCK,&mask,0); // blocks parent signal
+	   if((pid = fork()) ==0 ){ //bg child
 			if (execve(argv[0], argv, environ) <0){
 				printf("%s: Command not found. \n", argv[0]);
 				exit(0);
 			}  
 			return;
-		  }// Parent fxn 
-		  	  
+	  if(bg) // if bg task = true //parent fxns
+	  { 
+		  	addjob(jobs, pid, BG, cmdline); // add job to joblist in background
+		  	printf("[%d] (%d) %s", pid2jid(pid), pid, cmdline);  
 	  }else{ // fg task
-		if((pid = fork()) ==0 ){ //fg child 
-			if (execve(argv[0], argv, environ) <0){
-				printf("%s: Command not found. \n", argv[0]);
-				exit(0);
-			}  
-			return;
-	    }//parent
- 
+	   addjob( jobs, pid, FG, cmdline);
+	   printf("[%d] (%d) %s", pid2jid(pid), pid, cmdline);
+	   }
+	sigprocmask(SIG_UNBLOCK,&mask,0); //unblocks parent signal
+	waitfg(pid); //what if its fg for child to end
     } 
 	  
   }	
@@ -202,21 +206,25 @@ void eval(char *cmdline)
 int builtin_cmd(char **argv) 
 {
   string cmd(argv[0]);
-  if(cmd == "quit"){ //quit command
+  if(cmd == "CLOSE" || cmd == "quit"){ //quit command
 	exit(0);
   }	
-  else if(cmd == "&"){//ignore singleton
+  else if(cmd == "#" || cmd == "&"){//ignore singleton
       return 1;
     }
    else if(cmd =="bg" || cmd =="fg"){ // background or forground 
 	   do_bgfg(argv);
 	   return 1; 
 	 }
- /* else if (cmd   = "jobs"){ //prints out jobs
-	  listjobs(job_t *jobs);
+   else if (cmd  == "jobs"){ //prints out jobs
+	  listjobs(jobs);
 	  return 1;
-	} 
-	*/     
+	}
+	else if (cmd == "SLEEP"){
+		sleep(2);
+		return 1;
+	}	
+	    
   return 0;     /* not a builtin command */
 }
 
@@ -264,6 +272,13 @@ void do_bgfg(char **argv)
   // your benefit.
   //
   string cmd(argv[0]);
+  kill(-jobp->pid,SIGCONT); // If job's pid is SIGCONT then it kills the fxn
+  if(cmd =="fg"){
+	  jobp->state= FG; // changes jobs pid to FG
+	  waitfg(jobp->pid); // Waits for job completion bc FG
+	} else{
+		jobp->state=BG;//change job pid to BG  not wait becuase background
+	}	
 
   return;
 }
@@ -296,13 +311,25 @@ void waitfg(pid_t pid)
 //
 void sigchld_handler(int sig) 
 {
-  pid_t pid=fgpid(jobs); // 
-  
-  if(pid !=0){
-	  kill(-pid, SIGINT);
-  }	  
-  
-  return;
+  pid_t pid;
+  int status;
+  while((pid=waitpid(WAIT_ANY, &status, WNOHANG | WUNTRACED))>0){
+	  //While there are children fxn still out there to kill
+	  if(WIFSIGNALED(status)){ //child exits bc signal is not caught
+		printf("Job [%d] (%d) termined by signal %d /n", pid2jid(pid), pid, WTERMSIG(status));
+		//prints out the job ## stopped by signal XX
+		//wtermsig determines which signal causes child to exit
+	  } else if (WIFSTOPPED(status)){  
+		 printf("Job [%d] (%d) stopped by signal %d /n", pid2jid(pid),pid, WSTOPSIG(status));
+			// prints out is signal is stopped
+			//wstopped tells which signal causes child to stop
+			//paused
+			getjobpid(jobs, pid)->state= ST;
+		return;
+	}
+	deletejob(jobs,pid); 
+  }	
+  return;  
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -316,7 +343,7 @@ void sigint_handler(int sig)
   pid_t pid=fgpid(jobs); //variable for fg task
   
   if(pid !=0){
-	  kill(-pid, SIGINT); // fi there is a fg job, job reaped
+	  kill(-pid, SIGINT); // if there is a fg job, job reaped
   }
   return;
 }
@@ -332,7 +359,7 @@ void sigtstp_handler(int sig)
   pid_t pid=fgpid(jobs); //variable for fg task
   
   if(pid !=0){
-	  kill(-pid, SIGTSTP); // fi there is a fg job, job suspended
+	  kill(-pid, SIGTSTP); // if there is a fg job, job suspended
   }
   return;
 }
