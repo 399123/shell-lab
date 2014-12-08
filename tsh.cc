@@ -273,7 +273,7 @@ void do_bgfg(char **argv)
   // your benefit.
   //
   string cmd(argv[0]);
-  kill(-jobp->pid,SIGCONT); // If job's pid is SIGCONT then it kills the fxn
+  kill(-jobp->pid,SIGCONT); // Send SIGCONT to job with == pid
   if(cmd =="fg"){
 	  jobp->state= FG; // changes jobs pid to FG
 	  waitfg(jobp->pid); // Waits for job completion bc FG
